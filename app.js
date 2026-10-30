@@ -7,7 +7,7 @@ const fields=[
  {key:'experiences',label:'楽しみたい体験は？（複数選択可）',sub:'いずれかができる場所を候補にし、複数の希望を満たす場所を優先します。',options:Object.entries(D.experienceLabels)},
  {key:'transport',label:'富山では、どう移動しますか？',sub:'県内で使う予定の交通手段を選んでください。',options:[['','まだ決めていない'],['car','車・レンタカー'],['public','鉄道・バス中心（車なし）']]},
  {key:'nights',label:'旅の日数はどれくらい？',sub:'富山県外での宿泊も含む、旅行全体の泊数です。',options:[['','まだ決めていない'],['0','日帰り'],['1','1泊2日'],['2','2泊以上']]},
- {key:'season',label:'いつごろの旅ですか？',sub:'秋・冬の回答は今回の集計にないため、時期を順位に反映しません。',options:[['','まだ決めていない'],['1','春（3〜5月）'],['2','夏（6〜8月）'],['3','秋（9〜11月）'],['4','冬（12〜2月）']]},
+ {key:'season',label:'いつごろの旅ですか？',sub:'秋・冬は、前年の同じ季節の回答も参考にします。',options:[['','まだ決めていない'],['1','春（3〜5月）'],['2','夏（6〜8月）'],['3','秋（9〜11月）'],['4','冬（12〜2月）']]},
  {key:'age',label:'年代を教えてください',sub:'任意の質問です。「回答しない」でもおすすめできます。',options:[['','回答しない'],['young','10〜30代'],['middle','40〜50代'],['senior','60代以上']]}
 ];
 const prefs=Object.fromEntries(fields.map(f=>[f.key,f.key==='experiences'?[]:'']));
@@ -54,7 +54,8 @@ function showResults(){
  const chosen=fields.flatMap(f=>f.key==='experiences'?prefs.experiences.map(v=>label(f.key,v)):prefs[f.key]?[label(f.key,prefs[f.key])]:[]);
  $('#summary').textContent=(chosen.length?chosen.join(' / '):'条件未定：初来訪者を少し重視した全体の傾向')+'。選んだ体験が結果全体で揃うように候補を選んでいます。表示順は、あなたへの適合度の順位ではありません。交通条件は順位の参考であり、到達可否・移動時間は未検証です。';
  $('#season-note').hidden=!['3','4'].includes(prefs.season);
- $('#season-note').textContent='秋・冬の回答を含まない試作データです。春・夏の統計から候補を表示しています。確認できた一部の季節限定スポットは候補から除きますが、営業期間・運行状況は必ず公式情報で確認してください。';
+ const history=D.seasonHistory?.groups[prefs.season];
+ $('#season-note').textContent=history?`${history.period}の県外回答 ${history.total.toLocaleString()}件も参考にしています。前年と共通の21地点のうち、回答が十分な場所に季節の傾向を反映します。その他の場所も候補に含みます。営業・運行状況は公式情報をご確認ください。`:'';
  const recommendations=TripEngine.selectRecommendations(lastRanked);
  $('#results-title').textContent=recommendations.length?`あなたの旅先候補 ${recommendations.length}件`:'条件に合う旅先を探しましょう';
  const covered=new Set(recommendations.flatMap(s=>s.matchedExperiences));
@@ -68,16 +69,21 @@ function basicInfo(s){
  const info=s.info||{};
  return `<dl class="basic-info">${[['所在地',info.address],['時間',info.hours],['休業日',info.closed],['料金の目安',info.fee],['アクセス',info.access]].map(([key,value])=>`<div><dt>${key}</dt><dd>${esc(value||'掲載情報では未確認。公式案内をご確認ください。')}</dd></div>`).join('')}</dl><p class="fine">情報参照日：${esc(info.checked||'未確認')}（${esc(info.verification||'未確認')}）。料金は通常の個人料金の目安です。減免・特別営業等は公式案内でご確認ください。</p>`;
 }
+function seasonEvidenceText(id){
+ if(!['3','4'].includes(prefs.season))return '';
+ const e=TripEngine.historicalSeason(D,id,prefs.season);
+ return e?`<p>${esc(e.period)}に回答した県外旅行者 ${e.total.toLocaleString()}件のうち、この場所への訪問回答は ${e.n.toLocaleString()}件。同じ調査票の年間傾向と比べ、候補選びの参考にしています。季節は回答時期に基づき、訪問日・営業状況を示すものではありません。</p>`:'<p>この場所は前年の調査対象外、または季節別の回答が少ないため、秋冬の統計補正をしていません。希望する体験と2026年4〜8月の集計で候補にしています。</p>';
+}
 function openDetail(id){
  const s=lastRanked.find(s=>s.id===id)||D.spots.find(s=>s.id===id);if(!s)return;
  const r=TripEngine.together(D,id,prefs);
- $('#detail-body').innerHTML=`<p class="eyebrow">${esc(s.area)}</p><h2 class="dialog-title">${esc(s.name)}</h2>${saveButton(s)}${photoMarkup(s,true)}<p>${esc(description(s))}</p>${s.info?.note?`<p class="notice">${esc(s.info.note)}</p>`:''}<h3>旅行前に知っておきたいこと</h3>${basicInfo(s)}<div class="links">${sourceLinks(s)}${s.url?`<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">施設・地域の公式案内 ↗</a>`:''}<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((s.info?.address||'富山県')+' '+s.name)}" target="_blank" rel="noopener noreferrer">地図を見る ↗</a></div><details><summary>この旅先を提案した根拠</summary><p>${s.baseN?evidence(s):'この場所は訪問者アンケートの対象地点です。現在の検索条件で選ばれた主候補とは限りません。'}</p><p>満足度は旅行全体の評価です。この地点そのものの評価や、あなたの満足確率ではありません。各条件は別々の集計で、全条件に同時に一致する訪問者の割合ではありません。</p></details><h3>一緒に検討したい場所</h3><p class="fine">同じ回答で訪問が記録された場所です。近さや訪問順を示すルートではありません。</p>${r.length?`<ul>${r.map(x=>`<li><button class="text-button" data-detail="${x.id}">${esc(x.name)}</button></li>`).join('')}</ul>`:'<p>十分な回答数の組み合わせがありません。</p>'}`;
+ $('#detail-body').innerHTML=`<p class="eyebrow">${esc(s.area)}</p><h2 class="dialog-title">${esc(s.name)}</h2>${saveButton(s)}${photoMarkup(s,true)}<p>${esc(description(s))}</p>${s.info?.note?`<p class="notice">${esc(s.info.note)}</p>`:''}<h3>旅行前に知っておきたいこと</h3>${basicInfo(s)}<div class="links">${sourceLinks(s)}${s.url?`<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">施設・地域の公式案内 ↗</a>`:''}<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((s.info?.address||'富山県')+' '+s.name)}" target="_blank" rel="noopener noreferrer">地図を見る ↗</a></div><details><summary>この旅先を提案した根拠</summary><p>${s.baseN?evidence(s):'この場所は訪問者アンケートの対象地点です。現在の検索条件で選ばれた主候補とは限りません。'}</p>${seasonEvidenceText(id)}<p>満足度は旅行全体の評価です。この地点そのものの評価や、あなたの満足確率ではありません。各条件は別々の集計で、全条件に同時に一致する訪問者の割合ではありません。</p></details><h3>一緒に検討したい場所</h3><p class="fine">同じ回答で訪問が記録された場所です。近さや訪問順を示すルートではありません。</p>${r.length?`<ul>${r.map(x=>`<li><button class="text-button" data-detail="${x.id}">${esc(x.name)}</button></li>`).join('')}</ul>`:'<p>十分な回答数の組み合わせがありません。</p>'}`;
  if(!$('#detail').open)$('#detail').showModal();
  $('#detail').scrollTop=0;
 }
 $('#close-detail').onclick=()=>$('#detail').close();
 $('#edit').onclick=()=>{$('#panel').scrollIntoView({behavior:'smooth'});$('#panel').querySelector('input,select,button').focus();};
-$('#method-text').innerHTML=`<p>${D.period}の県外在住者 ${D.n.toLocaleString()}件（初来訪 ${D.first.toLocaleString()}件）を使用しています。調査に含まれる47地点・エリアが対象で、富山のすべての観光地を網羅するものではありません。</p><ol><li>希望する体験が○の地点を主候補にし、選んだ体験を結果全体でカバーするよう選びます。まだ含まれていない体験を多く補う候補から選び、同数なら体験の一致数、統計スコアの順に比較します。通常5件までですが、希望のカバーに必要なら増やします。表示順は適合度ランキングではありません。△は原則として主候補の判定に使いません。ただし春の四重奏は、春を選んだ場合に景色・自然の候補に含めます。体験未選択なら全体から探します。同数の場合は同行者・交通手段・旅行全体の泊数・季節・年代の条件別集計を組み合わせます。初来訪者を少し重視します。</li><li>同じ体験一致数の候補について、条件に合う人に訪問されやすい傾向、回答数、旅行全体の満足度を合わせて順位を付けます。各条件は別々の集計で、全条件一致の集計ではありません。</li><li>10件未満の条件別データは使いません。満足割合を表示する条件別集計には30件以上を必要とします。少数回答の順位への影響は全体傾向で緩和します。</li></ol><p>任意回答のアンケートなので、回答場所や回答者の偏りがあります。満足度から訪問先の効果は断定できません。秋・冬の推薦精度、施設の営業可否、交通経路はこの試作では検証していません。</p><p>入力はブラウザー内だけで処理します。個票や自由記述の原文は配信せず、集計値だけを使用しています。入力履歴やアクセス解析は送信しません。「気になる場所」はこのブラウザーに保存します。別の端末とは同期せず、ブラウザーのデータを消去すると保存も消えます。</p>`;
+$('#method-text').innerHTML=`<p>${D.period}の県外在住者 ${D.n.toLocaleString()}件（初来訪 ${D.first.toLocaleString()}件）を使用しています。調査に含まれる47地点・エリアが対象で、富山のすべての観光地を網羅するものではありません。</p><ol><li>希望する体験が○の地点を主候補にし、選んだ体験を結果全体でカバーするよう選びます。まだ含まれていない体験を多く補う候補から選び、同数なら体験の一致数、統計スコアの順に比較します。通常5件までですが、希望のカバーに必要なら増やします。表示順は適合度ランキングではありません。△は原則として主候補の判定に使いません。ただし春の四重奏は、春を選んだ場合に景色・自然の候補に含めます。体験未選択なら全体から探します。同数の場合は同行者・交通手段・旅行全体の泊数・季節・年代の条件別集計を組み合わせます。初来訪者を少し重視します。</li><li>同じ体験一致数の候補について、条件に合う人に訪問されやすい傾向、回答数、旅行全体の満足度を合わせて順位を付けます。各条件は別々の集計で、全条件一致の集計ではありません。</li><li>10件未満の条件別データは使いません。満足割合を表示する条件別集計には30件以上を必要とします。少数回答の順位への影響は全体傾向で緩和します。</li></ol><p>任意回答のアンケートなので、回答場所や回答者の偏りがあります。満足度から訪問先の効果は断定できません。秋・冬は2025年4月〜2026年3月の県外回答5,190件から、前年と共通の21地点について季節別の訪問傾向を補足します。季節は回答時期に基づきます。対象外・10件未満の地点は季節補正をせず、満足度や同行者などの集計には前年分を混ぜません。推薦精度、施設の営業可否、交通経路は未検証です。</p><p>入力はブラウザー内だけで処理します。個票や自由記述の原文は配信せず、集計値だけを使用しています。入力履歴やアクセス解析は送信しません。「気になる場所」はこのブラウザーに保存します。別の端末とは同期せず、ブラウザーのデータを消去すると保存も消えます。</p>`;
 renderPanel();
 
 let localStore;
@@ -123,3 +129,4 @@ $('#compare-open').onclick=()=>{
 };
 $('#close-compare').onclick=()=>$('#compare-dialog').close();
 renderSaved();
+

@@ -36,10 +36,23 @@
    const affinity=(n/total)/(b[0]/data.base.total);
    const satisfaction=(good+30*prior)/(valid+30);
    // Blend conditional affinity with support and trip satisfaction. No predicted probability shown.
-   const score=.70*Math.log(Math.max(.01,affinity))+.10*Math.log(1+b[0]/100)+.20*(satisfaction-.8);
-   return {...s,matchedExperiences,score,evidence,baseN:b[1],baseGood:b[2],used};
+   const seasonEvidence=historicalSeason(data,s.id,prefs.season);
+   const score=.70*Math.log(Math.max(.01,affinity))+.10*Math.log(1+b[0]/100)+.20*(satisfaction-.8)+(seasonEvidence?.adjustment||0);
+   return {...s,matchedExperiences,score,evidence,seasonEvidence,baseN:b[1],baseGood:b[2],used};
   }).filter(Boolean).sort((a,b)=>b.matchedExperiences.length-a.matchedExperiences.length||b.score-a.score||a.id-b.id);
   return ranked;
+ }
+ // Compare within the OLD questionnaire only. Unmeasured and suppressed cells
+ // are neutral; never interpret newly added destinations as historical zeros.
+ function historicalSeason(data,id,season){
+  const h=data.seasonHistory,g=h?.groups?.[season];
+  if(!g || !h.measuredIds.includes(id))return null;
+  const i=data.spots.findIndex(s=>s.id===id),b=h.baseVisits[i],n=g.spots[i];
+  if(!Number.isFinite(b)||!Number.isFinite(n)||b<10||n<10||h.total<=0||g.total<=0)return null;
+  const prior=b/h.total;
+  const ratio=((n+h.priorRespondents*prior)/(g.total+h.priorRespondents))/prior;
+  const bounded=Math.max(h.ratioBounds[0],Math.min(h.ratioBounds[1],ratio));
+  return {period:g.period,n,total:g.total,ratio,adjustment:h.scoreWeight*Math.log(bounded)};
  }
  function together(data,id,prefs={}){
   const base=data.base.spots[id][0];
@@ -65,6 +78,7 @@
  }
  // Retain the old entry point for callers; result may exceed five to cover all wishes.
  const topFive=selectRecommendations;
- root.TripEngine={recommend,together,selectRecommendations,topFive,weights};
+ root.TripEngine={recommend,together,selectRecommendations,topFive,weights,historicalSeason};
  if(typeof module!=='undefined')module.exports=root.TripEngine;
 })(typeof window!=='undefined'?window:globalThis);
+
