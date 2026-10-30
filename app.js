@@ -20,7 +20,7 @@ function renderPanel(){
  for(const m of ['filter','quiz']){const b=$('#tab-'+m);b.setAttribute('aria-selected',String(mode===m));b.tabIndex=mode===m?0:-1;}
  $('#panel').setAttribute('aria-labelledby','tab-'+mode);
  if(mode==='filter'){
-  $('#panel').innerHTML=`<form id="filters"><div class="form-grid">${[fields[1],fields[0],...fields.slice(2)].map(f=>f.key==='experiences'?`<fieldset class="experience-field"><legend>${f.label}</legend><p>${f.sub}</p><div class="experience-options">${f.options.map(([v,t])=>`<label><input type="checkbox" name="experiences" value="${v}" ${prefs.experiences.includes(v)?'checked':''}> ${esc(t)}</label>`).join('')}</div></fieldset>`:`<label for="${f.key}">${f.label}${f.key==='age'?'<small>任意</small>':''}<select id="${f.key}" name="${f.key}">${f.options.map(([v,t])=>`<option value="${v}" ${prefs[f.key]===v?'selected':''}>${esc(t)}</option>`).join('')}</select></label>`).join('')}</div><div class="actions"><p>すべて未定でも探せます。<br>泊数は旅行全体。春は4〜5月、夏は6〜8月の回答を参考にします。</p><button type="button" class="text-button" id="reset">条件をリセット</button><button class="primary" type="submit">おすすめを見る →</button></div></form>`;
+  $('#panel').innerHTML=`<form id="filters"><div class="form-grid">${[fields[1],fields[0],...fields.slice(2)].map(f=>f.key==='experiences'?`<fieldset class="experience-field"><legend>${f.label}</legend><p>${f.sub}</p><div class="experience-options">${f.options.map(([v,t])=>`<label><input type="checkbox" name="experiences" value="${v}" ${prefs.experiences.includes(v)?'checked':''}> ${esc(t)}</label>`).join('')}</div></fieldset>`:`<label for="${f.key}">${f.label}${f.key==='age'?'<small>任意</small>':''}<select id="${f.key}" name="${f.key}">${f.options.map(([v,t])=>`<option value="${v}" ${prefs[f.key]===v?'selected':''}>${esc(t)}</option>`).join('')}</select></label>`).join('')}</div><div class="actions"><p>すべて未定でも探せます。</p><button type="button" class="text-button" id="reset">条件をリセット</button><button class="primary" type="submit">おすすめを見る →</button></div></form>`;
   $('#filters').addEventListener('change',e=>{if(e.target.name==='experiences')prefs.experiences=[...document.querySelectorAll('[name=experiences]:checked')].map(x=>x.value);else prefs[e.target.name]=e.target.value;invalidate();});
   $('#filters').addEventListener('submit',e=>{e.preventDefault();showResults();});
   $('#reset').onclick=()=>{for(const f of fields)prefs[f.key]=f.key==='experiences'?[]:'';step=0;invalidate();renderPanel();};
@@ -94,7 +94,7 @@ function renderSaved(){
  }).join(''):'<li class="empty-saved">候補の「＋ 気になる」で保存できます。条件を変えて探しても、ここに残ります。</li>';
  $('#compare-open').disabled=comparison.length<2;
  $('#compare-open').textContent=`選んだ${comparison.length}件を比較`;
- $('#storage-note').textContent=saved.isPersistent()?'このブラウザーに保存します。ログイン不要・他端末との同期はありません。':'ブラウザーへの保存が使えないため、この画面を開いている間だけ保持します。';
+ $('#storage-note').textContent=saved.isPersistent()?'':'ブラウザーへの保存が使えないため、この画面を開いている間だけ保持します。';
  document.querySelectorAll('.save-button').forEach(b=>{
   const id=Number(b.dataset.save),s=D.spots.find(s=>s.id===id),active=saved.has(id);
   b.textContent=active?'✓ 保存済み':'＋ 気になる';b.setAttribute('aria-pressed',String(active));b.setAttribute('aria-label',s.name+'を気になる場所'+(active?'から削除':'に保存'));
